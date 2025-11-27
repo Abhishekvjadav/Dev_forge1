@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS | Vector+Graph Native DB</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['"Outfit"', 'sans-serif'],
+                        'mono': ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        bg: '#050508',
+                        surface: '#0f172a',
+                        primary: '#6366f1',   // Indigo (Vector)
+                        secondary: '#06b6d4', // Cyan (Graph)
+                        accent: '#ec4899',    // Pink (Highlight)
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                        'slide-up': 'slideUp 0.4s ease-out forwards',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { transform: 'translateY(10px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Cyberpunk Background Grid */
+        body {
+            background-color: #050508;
+            background-image: 
+                linear-gradient(rgba(99, 102, 241, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            overflow: hidden;
+        }
+
+        /* Glassmorphism Panel */
+        .glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #fff;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.8);
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="text-slate-300 h-screen flex flex-col font-sans">
+
+    <header class="h-16 border-b border-white/10 glass z-50 flex items-center justify-between px-6">
+        <div class="flex items-center gap-3">
+            <div class="relative w-8 h-8 flex items-center justify-center bg-indigo-500/20 rounded-lg border border-indigo-500/50">
+                <i class="fa-solid fa-network-wired text-indigo-400 text-sm"></i>
+                <div class="absolute inset-0 bg-indigo-500/20 blur-lg rounded-full"></div>
+            </div>
+            <div>
+                <h1 class="font-bold text-white tracking-wider text-lg">NEXUS<span class="text-indigo-500">DB</span></h1>
+                <div class="text-[10px] text-slate-500 font-mono leading-none tracking-widest">HYBRID RETRIEVAL ENGINE</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
+                <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                <span class="text-xs font-mono text-green-400">CORE: ONLINE</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        
+        <aside class="w-[480px] flex flex-col border-r border-white/5 glass z-40">
+            
+            <div class="p-6 border-b border-white/5">
+                <div class="relative group">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-cyan-500 rounded-xl blur opacity-30 group-hover:opacity-60 transition duration-300"></div>
+                    <div class="relative flex items-center bg-slate-900 rounded-xl border border-white/10 p-1">
+                        <input type="text" id="queryInput" 
+                            class="w-full bg-transparent border-none text-white placeholder-slate-500 focus:ring-0 px-4 py-3 font-medium outline-none"
+                            placeholder="Enter query..." 
+                            value="knowledge graph"
+                            onkeypress="if(event.key === 'Enter') runSearch()">
+                        <button onclick="runSearch()" class="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all shadow-lg shadow-indigo-500/30">
+                            <i class="fa-solid fa-bolt"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 space-y-5 bg-slate-900/30 border-b border-white/5">
+                <div class="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
+                    <span>Fusion Weights</span>
+                    <i class="fa-solid fa-sliders"></i>
+                </div>
+
+                <div class="group">
+                    <div class="flex justify-between text-xs mb-2">
+                        <span class="text-indigo-400 font-mono"><i class="fa-solid fa-brain mr-2"></i>SEMANTIC (Alpha)</span>
+                        <span id="val-alpha" class="text-white font-mono bg-indigo-500/20 px-2 rounded">0.6</span>
+                    </div>
+                    <input type="range" id="alpha" min="0" max="1" step="0.1" value="0.6" class="accent-indigo-500" 
+                    oninput="document.getElementById('val-alpha').innerText = this.value">
+                </div>
+
+                <div class="group">
+                    <div class="flex justify-between text-xs mb-2">
+                        <span class="text-cyan-400 font-mono"><i class="fa-solid fa-share-nodes mr-2"></i>GRAPH (Beta)</span>
+                        <span id="val-beta" class="text-white font-mono bg-cyan-500/20 px-2 rounded">0.2</span>
+                    </div>
+                    <input type="range" id="beta" min="0" max="1" step="0.1" value="0.2" class="accent-cyan-500"
+                    oninput="document.getElementById('val-beta').innerText = this.value">
+                </div>
+                
+                 <div class="group">
+                    <div class="flex justify-between text-xs mb-2">
+                        <span class="text-pink-400 font-mono"><i class="fa-solid fa-people-arrows mr-2"></i>NEIGHBOR (Gamma)</span>
+                        <span id="val-gamma" class="text-white font-mono bg-pink-500/20 px-2 rounded">0.2</span>
+                    </div>
+                    <input type="range" id="gamma" min="0" max="1" step="0.1" value="0.2" class="accent-pink-500"
+                    oninput="document.getElementById('val-gamma').innerText = this.value">
+                </div>
+            </div>
+
+            <div id="resultsContainer" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-transparent to-slate-900/50">
+                <div class="h-full flex flex-col items-center justify-center text-slate-600 opacity-60">
+                    <i class="fa-solid fa-microchip text-4xl mb-4 animate-pulse-slow"></i>
+                    <p class="font-mono text-sm">AWAITING INPUT SEQUENCE</p>
+                </div>
+            </div>
+        </aside>
+
+        <section class="flex-1 relative bg-black/20">
+            <div class="absolute top-6 left-6 z-10 flex gap-4">
+                <div class="glass px-4 py-2 rounded border border-white/5 flex flex-col">
+                    <span class="text-[10px] text-slate-400 font-mono uppercase">Nodes</span>
+                    <span id="stat-nodes" class="text-xl font-bold text-white font-mono">0</span>
+                </div>
+                <div class="glass px-4 py-2 rounded border border-white/5 flex flex-col">
+                    <span class="text-[10px] text-slate-400 font-mono uppercase">Edges</span>
+                    <span id="stat-edges" class="text-xl font-bold text-white font-mono">0</span>
+                </div>
+            </div>
+
+            <div id="network" class="w-full h-full cursor-crosshair"></div>
+            
+            <div id="loading" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-center">
+                <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <div class="mt-4 font-mono text-indigo-400 animate-pulse">TRAVERSING VECTOR SPACE...</div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        let network = null;
+
+        async function runSearch() {
+            const query = document.getElementById('queryInput').value;
+            const alpha = parseFloat(document.getElementById('alpha').value);
+            const beta = parseFloat(document.getElementById('beta').value);
+            const gamma = parseFloat(document.getElementById('gamma').value);
+            
+            document.getElementById('loading').style.display = 'flex';
+            
+            try {
+                // 1. Fetch Data
+                const response = await fetch(`${API_URL}/search/hybrid`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, alpha, beta, gamma, top_k: 10 })
+                });
+                
+                if(!response.ok) throw new Error("Connection failed");
+                const results = await response.json();
+                
+                // 2. Render
+                renderResults(results);
+                await renderGraph(results);
+                
+            } catch (err) {
+                console.error(err);
+                alert("Ensure Backend is running! " + err.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function renderResults(results) {
+            const container = document.getElementById('resultsContainer');
+            container.innerHTML = '';
+            
+            results.forEach((r, idx) => {
+                // Calculate percentages for the progress bar
+                const total = r.score;
+                // Avoid division by zero
+                const safeTotal = total > 0 ? total : 1;
+                const vPct = (r.breakdown.vector / safeTotal) * 100;
+                const gPct = ((r.breakdown.centrality + r.breakdown.neighbor_boost) / safeTotal) * 100;
+
+                const div = document.createElement('div');
+                div.className = 'glass p-4 rounded-xl border-l-4 border-indigo-500 hover:border-cyan-400 transition-all duration-300 group cursor-pointer animate-slide-up';
+                div.style.animationDelay = `${idx * 100}ms`; // Staggered animation
+                
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-bold text-white text-lg group-hover:text-cyan-400 transition-colors">${r.node_id}</h3>
+                        <span class="font-mono text-xs bg-white/10 px-2 py-1 rounded text-cyan-300 border border-cyan-500/30">${r.score.toFixed(4)}</span>
+                    </div>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">${r.text}</p>
+                    
+                    <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex">
+                        <div style="width: ${vPct}%" class="h-full bg-gradient-to-r from-indigo-600 to-indigo-400" title="Vector Contribution"></div>
+                        <div style="width: ${gPct}%" class="h-full bg-gradient-to-r from-cyan-600 to-cyan-400" title="Graph Contribution"></div>
+                    </div>
+                    <div class="flex justify-between mt-1 text-[10px] font-mono uppercase text-slate-500">
+                        <span class="text-indigo-400"><i class="fa-solid fa-circle text-[6px] mr-1"></i>Semantic</span>
+                        <span class="text-cyan-400">Structure<i class="fa-solid fa-circle text-[6px] ml-1"></i></span>
+                    </div>
+                `;
+                
+                div.onclick = () => focusOnNode(r.node_id);
+                container.appendChild(div);
+            });
+        }
+
+        function focusOnNode(nodeId) {
+            if(network) {
+                network.selectNodes([nodeId]);
+                network.focus(nodeId, { animation: true, scale: 1.5 });
+            }
+        }
+
+        async function renderGraph(results) {
+            const resultIds = new Set(results.map(r => r.node_id));
+            let visNodes = [];
+            let visEdges = [];
+            let addedEdges = new Set();
+
+            for (const res of results) {
+                // Size node by relevance score
+                const size = 20 + (res.score * 30);
+                
+                visNodes.push({
+                    id: res.node_id,
+                    label: res.node_id,
+                    title: res.text,
+                    value: res.score,
+                    color: {
+                        background: '#0f172a',
+                        border: '#6366f1',
+                        highlight: { background: '#6366f1', border: '#fff' }
+                    },
+                    font: { color: '#94a3b8', face: 'JetBrains Mono', size: 14 },
+                    shape: 'dot',
+                    borderWidth: 2
+                });
+
+                // Fetch neighbors for visuals
+                try {
+                    const nodeRes = await fetch(`${API_URL}/nodes/${res.node_id}`);
+                    const nodeData = await nodeRes.json();
+                    
+                    if(nodeData.neighbors) {
+                        nodeData.neighbors.forEach(neighbor => {
+                            if (resultIds.has(neighbor)) {
+                                const edgeId = [res.node_id, neighbor].sort().join('-');
+                                if (!addedEdges.has(edgeId)) {
+                                    visEdges.push({ 
+                                        from: res.node_id, 
+                                        to: neighbor,
+                                        color: { color: '#06b6d4', opacity: 0.3 },
+                                        width: 2
+                                    });
+                                    addedEdges.add(edgeId);
+                                }
+                            }
+                        });
+                    }
+                } catch(e) {}
+            }
+
+            document.getElementById('stat-nodes').innerText = visNodes.length;
+            document.getElementById('stat-edges').innerText = visEdges.length;
+
+            const container = document.getElementById('network');
+            const data = { nodes: visNodes, edges: visEdges };
+            const options = {
+                nodes: {
+                    shadow: { enabled: true, color: 'rgba(0,0,0,0.5)' }
+                },
+                physics: {
+                    stabilization: false,
+                    barnesHut: { gravitationalConstant: -4000, springConstant: 0.04 }
+                }
+            };
+            
+            if(network) network.destroy();
+            network = new vis.Network(container, data, options);
+        }
+    </script>
+</body>
+</html>
